@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --cursor-size: 20px;
+}
+
+body {
+  margin: 0;
+  background-color: #e8e6e1; /* Default tan background */
+  color: #222;
+  cursor: none; /* Hide default cursor for custom one */
+  overflow-x: hidden;
+}
+
+/* Custom Scrollbar hiding */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
