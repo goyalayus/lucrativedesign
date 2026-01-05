@@ -31,6 +31,7 @@ Directory structure:
         ├── router/
         │   └── index.ts
         └── views/
+            ├── FoundersView.vue
             ├── HomeView.vue
             └── ProjectDetail.vue
 
@@ -2084,33 +2085,36 @@ File: src/components/AppFooter.vue
 File: src/components/AppHeader.vue
 ================================================
 <script setup lang="ts">
-import { ref } from 'vue';
-
-const isMenuOpen = ref(false);
+import { RouterLink } from 'vue-router';
 </script>
 
 <template>
   <nav class="fixed top-0 w-full z-50 mix-blend-difference text-white p-6 flex justify-between items-center bg-transparent">
-    <!-- Logo SVG -->
-    <a href="/" class="w-10 h-auto text-tan mix-blend-difference">
+    <!-- Left: Logo SVG -->
+    <RouterLink to="/" class="w-10 h-auto text-tan mix-blend-difference">
       <svg viewBox="0 0 33 37" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
         <path d="M22.8957 23.5685H10.2445L16.551 7.32065L22.2543 22.007V21.9999L28.0482 36.7544H32.9169V33.368L20.1084 1.49316H12.996L0.1875 33.368V36.7544H5.08726L8.13917 28.9021H20.8142L22.8957 23.5685Z" fill="currentColor"></path>
       </svg>
-    </a>
+    </RouterLink>
 
-    <!-- Wordmark -->
+    <!-- Center: Wordmark (Hidden on mobile to save space, visible on Desktop) -->
     <div class="hidden md:block">
        <span class="font-bold text-xl tracking-widest uppercase text-tan mix-blend-difference">Archipelago</span>
     </div>
 
-    <div class="flex items-center gap-8 text-tan mix-blend-difference">
-      <a href="/projects" class="hidden md:block hover:underline">Projects</a>
-      <div class="cursor-pointer" @click="isMenuOpen = !isMenuOpen">
-        <!-- Hamburger Icon -->
-        <svg width="32" viewBox="0 0 32 32" fill="currentColor">
-          <path d="M4 24H28V21.3333H4V24ZM4 17.3333H28V14.6667H4V17.3333ZM4 8V10.6667H28V8H4Z"></path>
-        </svg>
-      </div>
+    <!-- Right: Founders Link & Phone Number -->
+    <div class="flex items-center gap-6 md:gap-8 text-tan mix-blend-difference">
+      
+      <!-- Link to Founders Page -->
+      <RouterLink to="/founders" class="uppercase tracking-widest text-sm hover:underline font-medium">
+        Founders
+      </RouterLink>
+
+      <!-- Indian Phone Number -->
+      <a href="tel:+919876543210" class="uppercase tracking-widest text-sm hover:opacity-70 font-medium">
+        +91 98765 43210
+      </a>
+
     </div>
   </nav>
 </template>
@@ -2288,7 +2292,7 @@ import { RouterLink } from 'vue-router';
 </script>
 
 <template>
-  <section class="py-24 px-6 md:px-12 bg-[#e8e6e1]">
+  <section id="project-list" class="py-24 px-6 md:px-12 bg-[#e8e6e1]">
     <div class="mb-20">
         <h2 class="text-5xl md:text-7xl font-light tracking-tight">Featured Projects</h2>
     </div>
@@ -2556,6 +2560,7 @@ File: src/router/index.ts
 import { createRouter, createWebHistory } from 'vue-router';
 import HomeView from '../views/HomeView.vue';
 import ProjectDetail from '../views/ProjectDetail.vue';
+import FoundersView from '../views/FoundersView.vue'; // <--- Import this
 
 const router = createRouter({
   history: createWebHistory(),
@@ -2569,11 +2574,83 @@ const router = createRouter({
       path: '/project/:slug',
       name: 'project-detail',
       component: ProjectDetail
+    },
+    // Add this new route block
+    {
+      path: '/founders',
+      name: 'founders',
+      component: FoundersView
     }
   ]
 });
 
 export default router;
+
+
+
+================================================
+File: src/views/FoundersView.vue
+================================================
+<script setup lang="ts">
+import { onMounted } from 'vue';
+
+onMounted(() => {
+  window.scrollTo(0, 0);
+});
+</script>
+
+<template>
+  <div class="min-h-screen bg-[#e8e6e1] pt-32 pb-20">
+    <div class="container mx-auto px-6">
+      
+      <!-- Page Title -->
+      <div class="mb-20 border-b border-black/10 pb-8">
+        <h1 class="text-5xl md:text-8xl font-light">The Founders</h1>
+      </div>
+
+      <!-- Founders Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-16 items-start">
+        
+        <!-- Founder 1 -->
+        <div class="flex flex-col gap-6">
+          <div class="w-full aspect-[3/4] bg-gray-300 overflow-hidden relative group">
+            <img 
+              src="https://images.unsplash.com/photo-1560250097-0b93528c311a?q=80&w=1000&auto=format&fit=crop" 
+              alt="Founder 1" 
+              class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+            />
+          </div>
+          <div>
+            <h2 class="text-3xl font-light">Arjun Mehta</h2>
+            <p class="text-sm uppercase tracking-widest opacity-60 mt-1">Principal Architect</p>
+            <p class="mt-4 text-lg font-light leading-relaxed opacity-80">
+              With over 20 years of experience in urban design, Arjun leads the practice with a focus on sustainable city-making and human-centric infrastructure.
+            </p>
+          </div>
+        </div>
+
+        <!-- Founder 2 -->
+        <div class="flex flex-col gap-6 md:mt-32">
+          <div class="w-full aspect-[3/4] bg-gray-300 overflow-hidden relative group">
+            <img 
+              src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=1000&auto=format&fit=crop" 
+              alt="Founder 2" 
+              class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+            />
+          </div>
+          <div>
+            <h2 class="text-3xl font-light">Priya Sharma</h2>
+            <p class="text-sm uppercase tracking-widest opacity-60 mt-1">Design Director</p>
+            <p class="mt-4 text-lg font-light leading-relaxed opacity-80">
+              Priya challenges conventional boundaries, bringing a unique perspective to interior landscapes and public spaces that fosters community connection.
+            </p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</template>
 
 
 
