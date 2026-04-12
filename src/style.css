@@ -8,9 +8,8 @@
 
 body {
   margin: 0;
-  background-color: #e8e6e1; /* Default tan background */
+  background-color: #e8e6e1;
   color: #222;
-  cursor: none; /* Hide default cursor for custom one */
   overflow-x: hidden;
 }
 

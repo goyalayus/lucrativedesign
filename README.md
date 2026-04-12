@@ -1,5 +1,35 @@
-# Vue 3 + TypeScript + Vite
+# Lucrative Design
 
-This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+This repo now contains the public site plus a simple `/admin` dashboard for editing:
 
-Learn more about the recommended Project Setup and IDE Support in the [Vue Docs TypeScript Guide](https://vuejs.org/guide/typescript/overview.html#project-setup).
+- project names
+- project categories
+- project summaries
+- hero images
+- gallery images
+- image captions / descriptions
+- homepage copy and contact details
+
+## Local dev
+
+Use the plain Vite server when you're only checking the public site:
+
+```bash
+pnpm dev
+```
+
+Use the Vercel dev server when you want the admin dashboard and API routes to work locally:
+
+```bash
+pnpm dev:vercel
+```
+
+## Environment variables
+
+Copy `.env.example` to your local env setup and fill these in:
+
+- `ADMIN_PASSWORD`: required for `/admin` login
+- `ADMIN_SESSION_SECRET`: optional, but good to set separately
+- `BLOB_READ_WRITE_TOKEN`: required on Vercel if you want uploaded images and saved content to persist in Blob storage
+
+Without `BLOB_READ_WRITE_TOKEN`, the admin falls back to local file storage for development.

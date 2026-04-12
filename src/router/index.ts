@@ -1,10 +1,24 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import HomeView from '../views/HomeView.vue';
 import ProjectDetail from '../views/ProjectDetail.vue';
-import FoundersView from '../views/FoundersView.vue'; // <--- Import this
+import AdminView from '../views/AdminView.vue';
 
 const router = createRouter({
   history: createWebHistory(),
+  scrollBehavior(to) {
+    if (to.hash) {
+      return {
+        el: to.hash,
+        top: 110,
+        behavior: 'smooth',
+      };
+    }
+
+    return {
+      top: 0,
+      behavior: 'smooth',
+    };
+  },
   routes: [
     {
       path: '/',
@@ -16,11 +30,10 @@ const router = createRouter({
       name: 'project-detail',
       component: ProjectDetail
     },
-    // Add this new route block
     {
-      path: '/founders',
-      name: 'founders',
-      component: FoundersView
+      path: '/admin',
+      name: 'admin',
+      component: AdminView
     }
   ]
 });

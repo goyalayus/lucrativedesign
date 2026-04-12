@@ -11,6 +11,11 @@ node_modules
 dist
 dist-ssr
 *.local
+.vercel
+data/site-content.local.json
+public/uploads/admin/
+test-results/
+playwright-report/
 
 # Editor directories and files
 .vscode/*

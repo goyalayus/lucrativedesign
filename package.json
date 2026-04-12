@@ -5,11 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:vercel": "npx vercel dev --listen 4173",
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
     "@studio-freight/lenis": "^1.0.42",
+    "@vercel/blob": "^2.3.3",
     "gsap": "^3.14.2",
     "sass": "^1.97.1",
     "vue": "^3.5.24",

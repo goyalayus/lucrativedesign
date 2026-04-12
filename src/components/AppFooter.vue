@@ -1,35 +1,53 @@
+<script setup lang="ts">
+import { RouterLink } from 'vue-router';
+import { useSiteContent } from '../composables/useSiteContent';
+
+const { settings } = useSiteContent();
+</script>
+
 <template>
-  <footer class="bg-white pt-20 pb-10 px-6 md:px-12 text-charcoal">
-    <div class="flex flex-col md:flex-row justify-between items-start mb-20">
-      <!-- Big Logo -->
-      <div class="w-full md:w-1/3 mb-10 md:mb-0">
-         <h1 class="text-4xl font-bold tracking-tight">ARCHIPELAGO</h1>
+  <footer id="contact" class="bg-[#111d20] px-6 pb-10 pt-20 text-white md:px-12">
+    <div class="mx-auto grid max-w-6xl gap-12 md:grid-cols-[1.1fr,0.7fr,0.7fr]">
+      <div>
+        <img
+          :src="settings.logoFullUrl"
+          :alt="settings.brandLogoAlt"
+          class="w-full max-w-sm rounded-2xl bg-white/95 p-4 object-contain"
+        />
+        <p class="mt-6 text-sm uppercase tracking-[0.3em] text-[#7acc88]">
+          {{ settings.footerNote }}
+        </p>
+        <p class="mt-6 max-w-md text-base leading-relaxed text-white/72">
+          {{ settings.footerSummary }}
+        </p>
       </div>
 
-      <!-- Links -->
-      <div class="flex gap-12 md:gap-24 text-lg">
-        <div class="flex flex-col gap-2">
-            <a href="#" class="hover:opacity-50 transition-opacity">Projects</a>
-        </div>
-        <div class="flex flex-col gap-2">
-            <a href="#" class="hover:opacity-50 transition-opacity">About Us</a>
-            <a href="#" class="hover:opacity-50 transition-opacity">Workshops</a>
-        </div>
-        <div class="flex flex-col gap-2">
-            <a href="#" class="hover:opacity-50 transition-opacity">Team</a>
-            <a href="#" class="hover:opacity-50 transition-opacity">Careers</a>
+      <div>
+        <p class="text-sm uppercase tracking-[0.3em] text-white/50">Location</p>
+        <p class="mt-4 text-2xl font-light">{{ settings.location }}</p>
+
+        <p class="mt-10 text-sm uppercase tracking-[0.3em] text-white/50">Phone</p>
+        <a :href="settings.phoneHref" class="mt-4 block text-2xl font-light hover:text-[#7acc88]">
+          {{ settings.phoneDisplay }}
+        </a>
+      </div>
+
+      <div>
+        <p class="text-sm uppercase tracking-[0.3em] text-white/50">Quick links</p>
+        <div class="mt-4 flex flex-col gap-3 text-2xl font-light">
+          <RouterLink :to="{ path: '/', hash: '#project-list' }" class="hover:text-[#7acc88]">
+            Projects
+          </RouterLink>
+          <RouterLink :to="{ path: '/', hash: '#contact' }" class="hover:text-[#7acc88]">
+            Contact
+          </RouterLink>
         </div>
       </div>
     </div>
 
-    <div class="flex flex-col md:flex-row justify-between items-end border-t border-gray-200 pt-10">
-        <div class="text-sm opacity-50 max-w-md">
-            <p>Archipelago acknowledges the Traditional Custodians of the land on which we work. We pay our respects to all Elders, past, present and emerging.</p>
-        </div>
-        <div class="flex gap-6 mt-6 md:mt-0 text-sm font-bold">
-            <a href="#">LinkedIn</a>
-            <a href="#">Instagram</a>
-        </div>
+    <div class="mx-auto mt-16 flex max-w-6xl flex-col gap-4 border-t border-white/10 pt-8 text-sm text-white/55 md:flex-row md:items-end md:justify-between">
+      <p>{{ settings.brandName }}</p>
+      <p>{{ settings.footerSummary }}</p>
     </div>
   </footer>
 </template>
