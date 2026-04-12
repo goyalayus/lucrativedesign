@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { put, get } from '@vercel/blob';
+import { get, list, put } from '@vercel/blob';
 import {
   cloneSiteContent,
   defaultSiteContent,
@@ -8,7 +8,8 @@ import {
 import { normalizeSiteContent } from '../../src/lib/content/normalize.js';
 import type { SiteContent } from '../../src/lib/content/types.js';
 
-const CONTENT_PATHNAME = 'content/site-content.json';
+const LEGACY_CONTENT_PATHNAME = 'content/site-content.json';
+const CONTENT_PATH_PREFIX = 'content/site-content-';
 const LOCAL_CONTENT_FILE = path.join(process.cwd(), 'data', 'site-content.local.json');
 const LOCAL_UPLOAD_ROOT = path.join(process.cwd(), 'public', 'uploads', 'admin');
 
@@ -18,6 +19,11 @@ export interface ContentStorageInfo {
   mode: ContentStorageMode;
   label: string;
   detail: string;
+}
+
+export interface SiteContentReadResult {
+  content: SiteContent;
+  source: 'blob-versioned' | 'blob-legacy' | 'local-file' | 'default-content';
 }
 
 function hasBlobToken(): boolean {
@@ -67,14 +73,99 @@ async function readLocalContent(): Promise<SiteContent | null> {
   }
 }
 
-export async function readSiteContent(): Promise<SiteContent> {
+async function readBlobContent(pathname: string): Promise<SiteContent | null> {
+  const blob = await get(pathname, { access: 'public' });
+
+  if (blob?.statusCode !== 200) {
+    return null;
+  }
+
+  const payload = await new Response(blob.stream).text();
+  return normalizeSiteContent(JSON.parse(payload));
+}
+
+function extractVersionTimestamp(pathname: string): number {
+  const withoutPrefix = pathname.startsWith(CONTENT_PATH_PREFIX)
+    ? pathname.slice(CONTENT_PATH_PREFIX.length)
+    : pathname;
+  const [rawTimestamp] = withoutPrefix.split('-', 1);
+  const parsedTimestamp = Number.parseInt(rawTimestamp ?? '', 10);
+
+  if (Number.isNaN(parsedTimestamp)) {
+    return 0;
+  }
+
+  return parsedTimestamp;
+}
+
+async function findLatestVersionedContentPathname(): Promise<string | null> {
+  let cursor: string | undefined;
+  let latestBlob:
+    | {
+        pathname: string;
+        versionTimestamp: number;
+      }
+    | null = null;
+
+  do {
+    const result = await list({
+      prefix: CONTENT_PATH_PREFIX,
+      cursor,
+      limit: 1000,
+    });
+
+    for (const blob of result.blobs) {
+      const versionTimestamp = extractVersionTimestamp(blob.pathname);
+
+      if (
+        !latestBlob ||
+        versionTimestamp > latestBlob.versionTimestamp ||
+        (
+          versionTimestamp === latestBlob.versionTimestamp &&
+          blob.pathname > latestBlob.pathname
+        )
+      ) {
+        latestBlob = {
+          pathname: blob.pathname,
+          versionTimestamp,
+        };
+      }
+    }
+
+    cursor = result.hasMore ? result.cursor : undefined;
+  } while (cursor);
+
+  return latestBlob?.pathname ?? null;
+}
+
+function createVersionedContentPathname(): string {
+  const randomSuffix = Math.random().toString(36).slice(2, 8);
+  return `${CONTENT_PATH_PREFIX}${Date.now()}-${randomSuffix}.json`;
+}
+
+export async function readSiteContentWithSource(): Promise<SiteContentReadResult> {
   if (hasBlobToken()) {
     try {
-      const blob = await get(CONTENT_PATHNAME, { access: 'public' });
+      const latestVersionedPathname = await findLatestVersionedContentPathname();
 
-      if (blob?.statusCode === 200) {
-        const payload = await new Response(blob.stream).text();
-        return normalizeSiteContent(JSON.parse(payload));
+      if (latestVersionedPathname) {
+        const versionedContent = await readBlobContent(latestVersionedPathname);
+
+        if (versionedContent) {
+          return {
+            content: versionedContent,
+            source: 'blob-versioned',
+          };
+        }
+      }
+
+      const legacyContent = await readBlobContent(LEGACY_CONTENT_PATHNAME);
+
+      if (legacyContent) {
+        return {
+          content: legacyContent,
+          source: 'blob-legacy',
+        };
       }
     } catch {
       // Fall back to local data or defaults.
@@ -82,7 +173,23 @@ export async function readSiteContent(): Promise<SiteContent> {
   }
 
   const localContent = await readLocalContent();
-  return localContent ?? cloneSiteContent(defaultSiteContent);
+
+  if (localContent) {
+    return {
+      content: localContent,
+      source: 'local-file',
+    };
+  }
+
+  return {
+    content: cloneSiteContent(defaultSiteContent),
+    source: 'default-content',
+  };
+}
+
+export async function readSiteContent(): Promise<SiteContent> {
+  const { content } = await readSiteContentWithSource();
+  return content;
 }
 
 export async function writeSiteContent(value: SiteContent): Promise<SiteContent> {
@@ -93,10 +200,9 @@ export async function writeSiteContent(value: SiteContent): Promise<SiteContent>
   const payload = JSON.stringify(nextContent, null, 2);
 
   if (hasBlobToken()) {
-    await put(CONTENT_PATHNAME, payload, {
+    await put(createVersionedContentPathname(), payload, {
       access: 'public',
       addRandomSuffix: false,
-      allowOverwrite: true,
       contentType: 'application/json; charset=utf-8',
     });
 
