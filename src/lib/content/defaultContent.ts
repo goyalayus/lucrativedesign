@@ -170,9 +170,14 @@ export const defaultSiteContent: SiteContent = {
     founder: createFounderProfile({
       name: '',
       role: '',
-      description: '',
+      description:
+        'At Lucrative Design, we believe that exceptional spaces are created through a perfect balance of creativity, functionality, and innovation. We are a multidisciplinary design consultancy specializing in Architecture, Interior Design, Urban Planning, Landscape Design, and Turnkey Project Solutions. Our mission is to transform ideas into inspiring environments that enhance the way people live, work, and interact.',
       imagePosition: 'left',
-      photo: createImageAsset(),
+      photo: createImageAsset({
+        id: 'team-founder-photo',
+        url: '/team/founder.png',
+        alt: 'Lucrative Design founder portrait',
+      }),
     }),
   }),
   projects: [
