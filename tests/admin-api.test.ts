@@ -8,7 +8,6 @@ import {
   GET as getAdminContent,
   PUT as putAdminContent,
 } from '../api/admin/content.ts';
-import { POST as uploadAdmin } from '../api/admin/upload.ts';
 import {
   cloneSiteContent,
   defaultSiteContent,
@@ -26,7 +25,11 @@ const environmentKeys = [
   'ADMIN_SESSION_SECRET',
   'VERCEL',
   'VERCEL_ENV',
-  'BLOB_READ_WRITE_TOKEN',
+  'AWS_REGION',
+  'S3_BUCKET_NAME',
+  'S3_PUBLIC_BASE_URL',
+  'AWS_ACCESS_KEY_ID',
+  'AWS_SECRET_ACCESS_KEY',
 ] as const;
 const originalEnvironment = Object.fromEntries(
   environmentKeys.map((key) => [key, process.env[key]]),
@@ -42,7 +45,11 @@ beforeEach(() => {
   process.env.ADMIN_SESSION_SECRET = TEST_SESSION_SECRET;
   delete process.env.VERCEL;
   delete process.env.VERCEL_ENV;
-  delete process.env.BLOB_READ_WRITE_TOKEN;
+  delete process.env.AWS_REGION;
+  delete process.env.S3_BUCKET_NAME;
+  delete process.env.S3_PUBLIC_BASE_URL;
+  delete process.env.AWS_ACCESS_KEY_ID;
+  delete process.env.AWS_SECRET_ACCESS_KEY;
 });
 
 afterEach(async () => {
@@ -227,7 +234,7 @@ test('reports unavailable persistent storage on Vercel', async () => {
   assert.equal(readResponse.status, 503);
   assert.deepEqual(await readResponse.json(), {
     message:
-      'Persistent content storage is not configured. Add BLOB_READ_WRITE_TOKEN to the Vercel project.',
+      'Persistent content storage is not configured. Add AWS_REGION and S3_BUCKET_NAME to the Vercel project.',
   });
 
   const saveResponse = await putContent(
@@ -239,84 +246,8 @@ test('reports unavailable persistent storage on Vercel', async () => {
   assert.equal(saveResponse.status, 503);
   assert.deepEqual(await saveResponse.json(), {
     message:
-      'Persistent content storage is not configured. Add BLOB_READ_WRITE_TOKEN to the Vercel project.',
+      'Persistent content storage is not configured. Add AWS_REGION and S3_BUCKET_NAME to the Vercel project.',
   });
-});
-
-test('reports unavailable upload storage on Vercel', async () => {
-  process.env.VERCEL = '1';
-  process.env.VERCEL_ENV = 'production';
-  const cookie = await loginAndGetCookie();
-  const formData = new FormData();
-  formData.set(
-    'file',
-    new File([new Uint8Array([0xff, 0xd8, 0xff, 0xd9])], 'test.jpg', {
-      type: 'image/jpeg',
-    }),
-  );
-
-  const response = await uploadAdmin(
-    new Request('http://localhost/api/admin/upload', {
-      method: 'POST',
-      headers: {
-        cookie,
-      },
-      body: formData,
-    }),
-  );
-
-  assert.equal(response.status, 503);
-  assert.deepEqual(await response.json(), {
-    message:
-      'Persistent asset storage is not configured. Add BLOB_READ_WRITE_TOKEN to the Vercel project.',
-  });
-});
-
-test('rejects unsupported and oversized uploads before storage', async () => {
-  const cookie = await loginAndGetCookie();
-  const unsupportedFormData = new FormData();
-  unsupportedFormData.set(
-    'file',
-    new File(['html'], 'test.html', { type: 'text/html' }),
-  );
-  const unsupportedResponse = await uploadAdmin(
-    new Request('http://localhost/api/admin/upload', {
-      method: 'POST',
-      headers: { cookie },
-      body: unsupportedFormData,
-    }),
-  );
-  assert.equal(unsupportedResponse.status, 415);
-
-  const oversizedFormData = new FormData();
-  oversizedFormData.set(
-    'file',
-    new File([new Uint8Array(4 * 1024 * 1024 + 1)], 'large.jpg', {
-      type: 'image/jpeg',
-    }),
-  );
-  const oversizedResponse = await uploadAdmin(
-    new Request('http://localhost/api/admin/upload', {
-      method: 'POST',
-      headers: { cookie },
-      body: oversizedFormData,
-    }),
-  );
-  assert.equal(oversizedResponse.status, 413);
-
-  const spoofedFormData = new FormData();
-  spoofedFormData.set(
-    'file',
-    new File(['not a jpeg'], 'spoofed.jpg', { type: 'image/jpeg' }),
-  );
-  const spoofedResponse = await uploadAdmin(
-    new Request('http://localhost/api/admin/upload', {
-      method: 'POST',
-      headers: { cookie },
-      body: spoofedFormData,
-    }),
-  );
-  assert.equal(spoofedResponse.status, 415);
 });
 
 test('rejects a stale revision instead of silently overwriting newer content', async () => {

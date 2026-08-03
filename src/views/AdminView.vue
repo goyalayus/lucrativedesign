@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue';
 import { useSiteContent } from '../composables/useSiteContent';
+import { AdminUploadError, uploadFileToS3 } from '../lib/admin-upload';
 import {
   cloneSiteContent,
   createHighlightCard,
@@ -17,7 +18,7 @@ import type {
 
 type AdminMode = 'loading' | 'login' | 'ready';
 type SettingImageField = 'logoMarkUrl' | 'logoFullUrl';
-type AdminStorageMode = 'blob' | 'local' | 'unavailable';
+type AdminStorageMode = 's3' | 'local' | 'unavailable';
 
 interface AdminStorageInfo {
   mode: AdminStorageMode;
@@ -41,18 +42,18 @@ const savedSnapshot = ref('');
 const storageInfo = ref<AdminStorageInfo | null>(null);
 const { replaceContent } = useSiteContent();
 
-const canUpload = computed(() => storageInfo.value?.mode === 'blob');
+const canUpload = computed(() => storageInfo.value?.mode === 's3');
 const canSave = computed(() => storageInfo.value?.mode !== 'unavailable');
 
 const imageInputHelpText = computed(() =>
   canUpload.value
-    ? 'Paste a public image URL or upload a file directly to Vercel Blob.'
-    : 'Paste a public image URL here. Upload buttons stay hidden until Blob storage is connected.',
+    ? 'Paste a public image URL or upload a file directly to AWS S3.'
+    : 'Paste a public image URL here. Upload buttons stay hidden until S3 storage is connected.',
 );
 
 const galleryHelpText = computed(() =>
   canUpload.value
-    ? 'Paste public image URLs, captions, or upload new files.'
+    ? 'Paste public image URLs, captions, or upload new files directly to S3.'
     : 'Paste public image URLs and captions for each gallery item.',
 );
 
@@ -258,7 +259,7 @@ async function saveContent(): Promise<void> {
   if (!canSave.value) {
     errorMessage.value =
       storageInfo.value?.detail ??
-      'Persistent storage is not configured. Add BLOB_READ_WRITE_TOKEN to the Vercel project.';
+      'Persistent storage is not configured. Add AWS_REGION and S3_BUCKET_NAME to the Vercel project.';
     return;
   }
 
@@ -314,32 +315,19 @@ async function uploadFile(file: File, folder: string, key: string): Promise<stri
   successMessage.value = '';
 
   try {
-    const formData = new FormData();
-    formData.set('file', file);
-    formData.set('folder', folder);
-
-    const response = await fetch('/api/admin/upload', {
-      method: 'POST',
-      credentials: 'include',
-      body: formData,
-    });
-
-    if (response.status === 401) {
+    const uploadedUrl = await uploadFileToS3(file, folder);
+    successMessage.value = 'Image uploaded to S3.';
+    return uploadedUrl;
+  } catch (error) {
+    if (error instanceof AdminUploadError && error.status === 401) {
       mode.value = 'login';
       errorMessage.value = 'Your session expired. Log in again and retry the upload.';
       return null;
     }
 
-    if (!response.ok) {
-      errorMessage.value = await readErrorMessage(response);
-      return null;
-    }
-
-    const payload = await response.json() as { url: string };
-    successMessage.value = 'Image uploaded.';
-    return payload.url;
-  } catch {
-    errorMessage.value = 'Upload failed. Try again in a second.';
+    errorMessage.value = error instanceof Error
+      ? error.message
+      : 'Upload failed. Try again in a second.';
     return null;
   } finally {
     setUploading(key, false);
@@ -677,7 +665,7 @@ function removeGalleryImage(project: Project, index: number): void {
           </div>
 
           <div
-            v-if="storageInfo && storageInfo.mode !== 'blob'"
+            v-if="storageInfo && storageInfo.mode !== 's3'"
             class="mt-4 rounded-[24px] border border-[#ead5b6] bg-[#fff6ea] px-4 py-3 text-sm leading-relaxed text-[#6d5334]"
           >
             {{ storageInfo.detail }}

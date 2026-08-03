@@ -224,9 +224,9 @@ Open `/admin`, authenticate through the UI, and confirm the dashboard reports AW
 
 Use a real image larger than 4 MB through the admin file chooser, confirm the direct S3 upload completes, save the project, and verify the public page renders the S3 URL after reload.
 
-- [ ] **Step 5: Repeat the CRUD lifecycle**
+- [ ] **Step 5: Create and leave the browser test project for owner inspection**
 
-Create, edit, delete, reload admin, and perform two consecutive public checks. Keep the old Blob object until this checklist is green.
+Create one clearly named project through the dashboard, save it, reload admin to confirm persistence, and verify its public page and uploaded S3 image. Leave the project intact for the owner to inspect; edit and delete are deferred to the owner's follow-up instruction. Keep the old Blob object until this checklist is green.
 
 - [ ] **Step 6: Final verification and cleanup**
 
