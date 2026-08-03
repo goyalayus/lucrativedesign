@@ -1,13 +1,16 @@
 import assert from 'node:assert/strict';
 import { mock, test } from 'node:test';
 
-const getOptions: Array<Record<string, unknown>> = [];
+const getRequests: Array<{
+  pathname: string;
+  options: Record<string, unknown>;
+}> = [];
 
 mock.module('@vercel/blob', {
   exports: {
     BlobPreconditionFailedError: class BlobPreconditionFailedError extends Error {},
-    get: async (_pathname: string, options: Record<string, unknown>) => {
-      getOptions.push(options);
+    get: async (pathname: string, options: Record<string, unknown>) => {
+      getRequests.push({ pathname, options });
 
       const { defaultSiteContent } = await import(
         '../src/lib/content/defaultContent.ts'
@@ -34,15 +37,19 @@ const { readSiteContentWithSource } = await import(
 
 test('reads Blob content from origin instead of a stale CDN response', async () => {
   const previousToken = process.env.BLOB_READ_WRITE_TOKEN;
-  process.env.BLOB_READ_WRITE_TOKEN = 'test-token';
-  getOptions.length = 0;
+  process.env.BLOB_READ_WRITE_TOKEN = 'test_token_x_store123';
+  getRequests.length = 0;
 
   try {
     const result = await readSiteContentWithSource({ strict: true });
 
     assert.equal(result.source, 'blob-current');
-    assert.equal(getOptions.length, 1);
-    assert.equal(getOptions[0]?.useCache, false);
+    assert.equal(getRequests.length, 1);
+    assert.match(
+      getRequests[0]?.pathname ?? '',
+      /^https:\/\/store123\.public\.blob\.vercel-storage\.com\/content\/site-content-authoritative\.json\?cache=/,
+    );
+    assert.equal(getRequests[0]?.options.useCache, undefined);
   } finally {
     if (previousToken === undefined) {
       delete process.env.BLOB_READ_WRITE_TOKEN;

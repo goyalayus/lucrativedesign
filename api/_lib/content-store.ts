@@ -145,6 +145,18 @@ function normalizeEtag(etag: string): string {
   return etag.startsWith('W/') ? etag.slice(2) : etag;
 }
 
+function createFreshBlobUrl(pathname: string): string {
+  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  const storeId = token?.split('_')[3];
+
+  if (!storeId) {
+    return pathname;
+  }
+
+  const cacheKey = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return `https://${storeId}.public.blob.vercel-storage.com/${pathname}?cache=${cacheKey}`;
+}
+
 function isBlobWriteConflict(error: unknown): boolean {
   return (
     error instanceof BlobPreconditionFailedError ||
@@ -162,7 +174,7 @@ async function readLocalContent(): Promise<SiteContent | null> {
 }
 
 async function readBlobContent(pathname: string): Promise<SiteContentReadResult | null> {
-  const blob = await get(pathname, { access: 'public', useCache: false });
+  const blob = await get(createFreshBlobUrl(pathname), { access: 'public' });
 
   if (blob?.statusCode !== 200) {
     return null;
