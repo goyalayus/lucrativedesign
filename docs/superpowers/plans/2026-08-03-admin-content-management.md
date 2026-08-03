@@ -34,7 +34,7 @@
 - Consumes: `POST` handlers from `api/admin/login.ts` and `api/admin/upload.ts`, `GET`/`PUT` handlers from `api/admin/content.ts`, and `defaultSiteContent` from `src/lib/content/defaultContent.ts`.
 - Produces: reproducible tests for unauthenticated access, login cookies, valid local saves, malformed payload rejection, production storage-unavailable behavior, and upload behavior.
 
-- [ ] **Step 1: Add the test runner dependency and test script**
+- [x] **Step 1: Add the test runner dependency and test script**
 
 Run:
 
@@ -48,7 +48,7 @@ Add this script to `package.json`:
 "test": "tsx --test tests/admin-api.test.ts"
 ```
 
-- [ ] **Step 2: Write tests that describe the required behavior**
+- [x] **Step 2: Write tests that describe the required behavior**
 
 The test file must set synthetic `ADMIN_PASSWORD=stress-test-password` and `ADMIN_SESSION_SECRET=stress-test-secret` only in process memory, restore environment variables after every test, and remove only the test-created `data/site-content.local.json` file in cleanup. Include these test cases:
 
@@ -119,7 +119,7 @@ test('reports unavailable upload storage on Vercel', async () => {
 
 The helpers in the test file must call the real handlers and pass `Request`/`FormData` objects; do not mock the production handlers.
 
-- [ ] **Step 3: Run the focused tests and confirm the expected red failures**
+- [x] **Step 3: Run the focused tests and confirm the expected red failures**
 
 Run: `pnpm test`
 
@@ -136,7 +136,7 @@ Expected: the unauthenticated and current valid local behavior tests pass; the m
 - Consumes: the existing Blob versioned-content store and local development fallback.
 - Produces: `ContentStorageMode = 'blob' | 'local' | 'unavailable'`, storage info that reports the unavailable state, typed storage errors, and JSON 503 responses.
 
-- [ ] **Step 1: Add production storage detection and typed errors**
+- [x] **Step 1: Add production storage detection and typed errors**
 
 Implement `isVercelRuntime()` using `VERCEL` or `VERCEL_ENV`, and define typed errors with these exact messages:
 
@@ -149,17 +149,17 @@ const ASSET_STORAGE_ERROR_MESSAGE =
 
 When no Blob token exists, `getContentStorageInfo()` must return `{ mode: 'unavailable', label: 'Persistent storage not configured', detail: CONTENT_STORAGE_ERROR_MESSAGE }` on Vercel, and preserve `{ mode: 'local', ... }` outside Vercel.
 
-- [ ] **Step 2: Guard production writes at the storage boundary**
+- [x] **Step 2: Guard production writes at the storage boundary**
 
 Before local file writes in `writeSiteContent()` and `uploadAsset()`, throw the corresponding typed error when running on Vercel without a Blob token. Keep Blob writes unchanged when `BLOB_READ_WRITE_TOKEN` is present and keep local writes unchanged outside Vercel.
 
-- [ ] **Step 3: Validate the storage tests are now green**
+- [x] **Step 3: Validate the storage tests are now green**
 
 Run: `pnpm test`
 
 Expected: the production content and upload tests pass, while the malformed payload test remains red until Task 3.
 
-- [ ] **Step 4: Convert storage errors to stable JSON responses**
+- [x] **Step 4: Convert storage errors to stable JSON responses**
 
 Wrap `readSiteContent()`/`writeSiteContent()` in `api/admin/content.ts` and `uploadAsset()` in `api/admin/upload.ts`. Return `errorResponse(error.message, 503)` for the typed storage errors and `errorResponse('Unable to read site content right now.', 503)` or `errorResponse('Unable to save site content right now.', 503)` for unexpected storage exceptions. Do not return stack traces or secret values.
 
@@ -174,19 +174,19 @@ Wrap `readSiteContent()`/`writeSiteContent()` in `api/admin/content.ts` and `upl
 - Consumes: `SiteContent` shape from `src/lib/content/types.ts` and normalized content from `src/lib/content/normalize.ts`.
 - Produces: `isSiteContentPayload(value: unknown): value is SiteContent`, API 400 validation, and an admin UI that disables saves/uploads when storage is unavailable.
 
-- [ ] **Step 1: Add a narrow top-level payload validator**
+- [x] **Step 1: Add a narrow top-level payload validator**
 
 Require a non-array object with own `settings`, `team`, and `projects` properties, where `settings` and `team` are non-null objects and `projects` is an array. Allow `projects: []` so an intentional empty project list remains valid. Use this validator before `normalizeSiteContent()`; never normalize malformed top-level input into defaults.
 
-- [ ] **Step 2: Reject malformed `PUT /api/admin/content` requests**
+- [x] **Step 2: Reject malformed `PUT /api/admin/content` requests**
 
 Return exactly HTTP 400 and `{ message: 'A valid site content payload is required.' }` when the validator rejects the request. Normalize only after validation.
 
-- [ ] **Step 3: Update the dashboard storage contract**
+- [x] **Step 3: Update the dashboard storage contract**
 
 Extend the client storage mode union with `'unavailable'`, show the server-provided detail in the existing warning panel, set `canUpload` false for unavailable storage, and disable the Save button with a visible reason while storage is unavailable. Keep URL-based edits visible, but tell the user that changes cannot persist until Blob storage is connected.
 
-- [ ] **Step 4: Run the focused tests and production build**
+- [x] **Step 4: Run the focused tests and production build**
 
 Run:
 
@@ -207,7 +207,7 @@ Expected: all focused tests pass, TypeScript emits no errors, and Vite exits 0.
 - Consumes: existing Vercel Blob resource `lucrative-design-assets` (`store_YlxcMcHR3T0gMftJ`) and Vercel project `lucrativedesign` (`prj_988fvieHFr4Vv87DBscgcRnJe2wz`).
 - Produces: `BLOB_READ_WRITE_TOKEN` available to Development, Preview, and Production without exposing its value.
 
-- [ ] **Step 1: Connect the existing empty store to the current project**
+- [x] **Step 1: Connect the existing empty store to the current project**
 
 Run:
 
@@ -217,11 +217,11 @@ npx vercel integration resource connect lucrative-design-assets lucrativedesign 
 
 Do not create a new store or connect the `lucrative-design-site-assets` store attached to `archipelago-clone`.
 
-- [ ] **Step 2: Verify configuration without printing secrets**
+- [x] **Step 2: Verify configuration without printing secrets**
 
 Run `npx vercel env ls` and confirm `BLOB_READ_WRITE_TOKEN` is present in all three environments; redact values in any notes or output.
 
-- [ ] **Step 3: Deploy the fix to a Vercel preview**
+- [x] **Step 3: Deploy the fix to a Vercel preview**
 
 Commit the code on `fix/admin-content-management`, push it, and run `npx vercel deploy --yes` from the branch checkout. Verify the preview URL returns HTTP 200 for `/api/content`, HTTP 401 for unauthenticated `/api/admin/content`, and HTTP 200 for `/admin`.
 
@@ -230,20 +230,20 @@ Commit the code on `fix/admin-content-management`, push it, and run `npx vercel 
 **Files:**
 - Inspect: `git diff`, `git status`, test/build output, Vercel deployment output, and production environment-variable names.
 
-- [ ] **Step 1: Run local verification pass one**
+- [x] **Step 1: Run local verification pass one**
 
 Run: `pnpm test && node_modules/.bin/vue-tsc -b && node_modules/.bin/vite build`
 
 Record the full pass/fail counts and exit codes.
 
-- [ ] **Step 2: Run local verification pass two from a clean process**
+- [x] **Step 2: Run local verification pass two from a clean process**
 
 Run the exact same command again after stopping any dev server and confirming `git status --short` contains only intentional files. It must pass independently.
 
-- [ ] **Step 3: Run deployed smoke checks twice**
+- [x] **Step 3: Run deployed smoke checks twice**
 
 For the preview deployment and then the production alias, verify `/api/content` is 200 JSON, `/admin` is 200 HTML, unauthenticated `/api/admin/content` is 401 JSON, and `npx vercel env ls` still shows `BLOB_READ_WRITE_TOKEN` in Production. Do not print cookies or credentials.
 
-- [ ] **Step 4: Commit and report the exact remaining external dependency, if any**
+- [x] **Step 4: Commit and report the exact remaining external dependency, if any**
 
 Use `git diff --check`, `git status --short --branch`, and the final verification evidence before claiming completion. If Vercel resource connection or deployment cannot be completed, report that as the specific blocker instead of claiming the admin is fixed.
