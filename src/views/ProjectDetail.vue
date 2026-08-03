@@ -2,13 +2,23 @@
 import { computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useSiteContent } from '../composables/useSiteContent';
+import { getProjectDetailState } from '../lib/project-detail-state';
 
 const route = useRoute();
-const { projects } = useSiteContent();
+const { projects, hasLoaded, isLoading, loadError } = useSiteContent();
 
 const project = computed(() => {
   return projects.value.find((entry) => entry.slug === route.params.slug);
 });
+
+const pageState = computed(() =>
+  getProjectDetailState({
+    hasLoaded: hasLoaded.value,
+    isLoading: isLoading.value,
+    loadError: loadError.value,
+    hasProject: Boolean(project.value),
+  }),
+);
 
 onMounted(() => {
   window.scrollTo(0, 0);
@@ -16,7 +26,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div v-if="project" class="min-h-screen bg-[#eee8dd] pb-20 pt-32">
+  <div v-if="pageState === 'ready' && project" class="min-h-screen bg-[#eee8dd] pb-20 pt-32">
     <div class="container mx-auto mb-20 px-6">
       <div class="mb-10 border-b border-black/10 pb-8">
         <p class="mb-2 text-sm uppercase tracking-[0.3em] text-[#3e8e60]">
@@ -84,6 +94,14 @@ onMounted(() => {
         </figure>
       </div>
     </div>
+  </div>
+
+  <div v-else-if="pageState === 'loading'" class="h-screen flex items-center justify-center pt-32">
+    <p class="text-sm uppercase tracking-[0.3em] text-[#162328]/55">Loading project</p>
+  </div>
+
+  <div v-else-if="pageState === 'error'" class="h-screen flex items-center justify-center pt-32">
+    <h1 class="text-4xl">Unable to load project</h1>
   </div>
 
   <div v-else class="h-screen flex items-center justify-center pt-32">
