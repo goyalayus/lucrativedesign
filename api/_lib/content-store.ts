@@ -135,6 +135,10 @@ function sanitizeFilename(value: string): string {
   return `${safeBase}${safeExtension || '.bin'}`;
 }
 
+function normalizeEtag(etag: string): string {
+  return etag.startsWith('W/') ? etag.slice(2) : etag;
+}
+
 async function readLocalContent(): Promise<SiteContent | null> {
   try {
     const raw = await readFile(LOCAL_CONTENT_FILE, 'utf8');
@@ -159,7 +163,7 @@ async function readBlobContent(pathname: string): Promise<SiteContentReadResult 
       : 'blob-versioned',
     storageRevision: {
       pathname,
-      etag: blob.blob.etag,
+      etag: normalizeEtag(blob.blob.etag),
     },
   };
 }
