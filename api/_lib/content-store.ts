@@ -52,7 +52,13 @@ function hasBlobToken(): boolean {
 }
 
 function isVercelRuntime(): boolean {
-  return Boolean(process.env.VERCEL || process.env.VERCEL_ENV);
+  const environment = process.env.VERCEL_ENV;
+
+  return (
+    environment === 'production' ||
+    environment === 'preview' ||
+    (Boolean(process.env.VERCEL) && !environment)
+  );
 }
 
 export function getContentStorageInfo(): ContentStorageInfo {

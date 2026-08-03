@@ -17,6 +17,42 @@ const ALLOWED_IMAGE_TYPES = new Set([
   'image/webp',
 ]);
 
+async function hasValidImageSignature(file: File): Promise<boolean> {
+  const bytes = new Uint8Array(await file.slice(0, 32).arrayBuffer());
+
+  if (file.type === 'image/jpeg') {
+    return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  }
+
+  if (file.type === 'image/png') {
+    return [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every(
+      (byte, index) => bytes[index] === byte,
+    );
+  }
+
+  if (file.type === 'image/gif') {
+    return (
+      String.fromCharCode(...bytes.slice(0, 6)) === 'GIF87a' ||
+      String.fromCharCode(...bytes.slice(0, 6)) === 'GIF89a'
+    );
+  }
+
+  if (file.type === 'image/webp') {
+    return (
+      String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF' &&
+      String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP'
+    );
+  }
+
+  if (file.type === 'image/avif') {
+    const fileType = String.fromCharCode(...bytes.slice(4, 8));
+    const brands = String.fromCharCode(...bytes.slice(8, 32));
+    return fileType === 'ftyp' && /avif|avis/.test(brands);
+  }
+
+  return false;
+}
+
 export async function POST(request: Request): Promise<Response> {
   const unauthorizedResponse = requireAdmin(request);
 
@@ -46,6 +82,13 @@ export async function POST(request: Request): Promise<Response> {
 
   if (file.size > MAX_UPLOAD_BYTES) {
     return errorResponse('Images must be 4 MB or smaller.', 413);
+  }
+
+  if (!(await hasValidImageSignature(file))) {
+    return errorResponse(
+      'The uploaded file does not match its image type.',
+      415,
+    );
   }
 
   try {

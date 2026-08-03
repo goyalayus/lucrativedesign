@@ -15,6 +15,14 @@ function hasRequiredKeys(
   return keys.every((key) => hasOwn(value, key));
 }
 
+function isString(value: unknown): value is string {
+  return typeof value === 'string';
+}
+
+function isStringList(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every(isString);
+}
+
 const settingsKeys = [
   'brandName',
   'brandLogoAlt',
@@ -59,43 +67,101 @@ const projectKeys = [
   'gallery',
 ] as const;
 
+function isImageAssetPayload(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    hasRequiredKeys(value, imageKeys) &&
+    isString(value.id) &&
+    isString(value.url) &&
+    isString(value.alt) &&
+    isString(value.caption)
+  );
+}
+
+function isHighlightCardPayload(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    hasRequiredKeys(value, ['id', 'title', 'description']) &&
+    isString(value.id) &&
+    isString(value.title) &&
+    isString(value.description)
+  );
+}
+
+function isSettingsPayload(value: unknown): boolean {
+  if (!isRecord(value) || !hasRequiredKeys(value, settingsKeys)) {
+    return false;
+  }
+
+  const stringKeys = settingsKeys.filter(
+    (key) => key !== 'introParagraphs' &&
+      key !== 'highlightCards' &&
+      key !== 'practiceAreas',
+  );
+
+  return (
+    stringKeys.every((key) => isString(value[key])) &&
+    isStringList(value.introParagraphs) &&
+    isStringList(value.practiceAreas) &&
+    Array.isArray(value.highlightCards) &&
+    value.highlightCards.every(isHighlightCardPayload)
+  );
+}
+
+function isTeamPayload(value: unknown): boolean {
+  if (
+    !isRecord(value) ||
+    !hasRequiredKeys(value, ['eyebrow', 'title', 'founder']) ||
+    !isString(value.eyebrow) ||
+    !isString(value.title) ||
+    !isRecord(value.founder) ||
+    !hasRequiredKeys(value.founder, founderKeys)
+  ) {
+    return false;
+  }
+
+  return (
+    isString(value.founder.name) &&
+    isString(value.founder.role) &&
+    isString(value.founder.description) &&
+    (value.founder.imagePosition === 'left' ||
+      value.founder.imagePosition === 'right') &&
+    isImageAssetPayload(value.founder.photo)
+  );
+}
+
+function isProjectPayload(value: unknown): boolean {
+  if (
+    !isRecord(value) ||
+    !hasRequiredKeys(value, projectKeys) ||
+    !isString(value.id) ||
+    !isString(value.slug) ||
+    !isString(value.title) ||
+    !isString(value.category) ||
+    !isString(value.summary) ||
+    !isStringList(value.services) ||
+    !isImageAssetPayload(value.heroImage) ||
+    !Array.isArray(value.gallery)
+  ) {
+    return false;
+  }
+
+  return value.gallery.every(isImageAssetPayload);
+}
+
 export function isSiteContentPayload(value: unknown): value is SiteContent {
   if (!isRecord(value)) {
     return false;
   }
 
-  const settings = value.settings;
-  const team = value.team;
   const projects = value.projects;
-  const founder = isRecord(team) ? team.founder : null;
 
   return (
     hasRequiredKeys(value, ['settings', 'team', 'projects', 'updatedAt']) &&
-    isRecord(settings) &&
-    isRecord(team) &&
-    hasRequiredKeys(settings, settingsKeys) &&
-    hasRequiredKeys(team, ['eyebrow', 'title', 'founder']) &&
-    isRecord(founder) &&
-    hasRequiredKeys(founder, founderKeys) &&
-    isRecord(founder.photo) &&
-    hasRequiredKeys(founder.photo, imageKeys) &&
+    isString(value.updatedAt) &&
+    isSettingsPayload(value.settings) &&
+    isTeamPayload(value.team) &&
     Array.isArray(projects) &&
-    projects.every((project) => {
-      if (!isRecord(project) || !hasRequiredKeys(project, projectKeys)) {
-        return false;
-      }
-
-      const heroImage = project.heroImage;
-      const gallery = project.gallery;
-
-      return (
-        isRecord(heroImage) &&
-        hasRequiredKeys(heroImage, imageKeys) &&
-        Array.isArray(gallery) &&
-        gallery.every(
-          (image) => isRecord(image) && hasRequiredKeys(image, imageKeys),
-        )
-      );
-    })
+    projects.every(isProjectPayload)
   );
 }

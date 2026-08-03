@@ -30,11 +30,17 @@ export async function GET(request: Request): Promise<Response> {
     return unauthorizedResponse;
   }
 
+  const storage = getContentStorageInfo();
+
+  if (storage.mode === 'unavailable') {
+    return errorResponse(storage.detail, 503);
+  }
+
   try {
     const content = await readSiteContent({ strict: true });
     return jsonResponse({
       content,
-      storage: getContentStorageInfo(),
+      storage,
     });
   } catch (error) {
     return storageErrorResponse(
@@ -59,16 +65,21 @@ export async function PUT(request: Request): Promise<Response> {
 
   const requestedRevision = request.headers.get('if-match')?.trim();
 
-  try {
-    if (requestedRevision) {
-      const currentContent = await readSiteContent({ strict: true });
+  if (!requestedRevision) {
+    return errorResponse(
+      'A content revision is required to save. Reload the admin dashboard and try again.',
+      428,
+    );
+  }
 
-      if (currentContent.updatedAt !== requestedRevision) {
-        return errorResponse(
-          'Content changed since you opened the admin dashboard. Reload before saving again.',
-          409,
-        );
-      }
+  try {
+    const currentContent = await readSiteContent({ strict: true });
+
+    if (currentContent.updatedAt !== requestedRevision) {
+      return errorResponse(
+        'Content changed since you opened the admin dashboard. Reload before saving again.',
+        409,
+      );
     }
 
     const savedContent = await writeSiteContent(normalizeSiteContent(body));
