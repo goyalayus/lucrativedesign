@@ -1,9 +1,12 @@
 import { requireAdmin } from '../_lib/auth.js';
 import {
+  ContentRevisionConflictError,
   ContentStorageReadError,
   ContentStorageUnavailableError,
   getContentStorageInfo,
   readSiteContent,
+  readSiteContentWithSource,
+  withContentWriteLock,
   writeSiteContent,
 } from '../_lib/content-store.js';
 import { errorResponse, jsonResponse } from '../_lib/http.js';
@@ -73,21 +76,35 @@ export async function PUT(request: Request): Promise<Response> {
   }
 
   try {
-    const currentContent = await readSiteContent({ strict: true });
+    const savedContent = await withContentWriteLock(async () => {
+      const currentSnapshot = await readSiteContentWithSource({ strict: true });
 
-    if (currentContent.updatedAt !== requestedRevision) {
+      if (currentSnapshot.content.updatedAt !== requestedRevision) {
+        return null;
+      }
+
+      return writeSiteContent(
+        normalizeSiteContent(body),
+        currentSnapshot.storageRevision,
+      );
+    });
+
+    if (!savedContent) {
       return errorResponse(
         'Content changed since you opened the admin dashboard. Reload before saving again.',
         409,
       );
     }
 
-    const savedContent = await writeSiteContent(normalizeSiteContent(body));
     return jsonResponse({
       content: savedContent,
       storage: getContentStorageInfo(),
     });
   } catch (error) {
+    if (error instanceof ContentRevisionConflictError) {
+      return errorResponse(error.message, 409);
+    }
+
     return storageErrorResponse(
       error,
       'Unable to save site content right now.',

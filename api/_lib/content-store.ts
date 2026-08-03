@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { get, list, put } from '@vercel/blob';
+import { BlobPreconditionFailedError, get, list, put } from '@vercel/blob';
 import {
   cloneSiteContent,
   defaultSiteContent,
@@ -36,6 +36,13 @@ export class ContentStorageReadError extends Error {
   }
 }
 
+export class ContentRevisionConflictError extends Error {
+  constructor() {
+    super('Content changed since you opened the admin dashboard. Reload before saving again.');
+    this.name = 'ContentRevisionConflictError';
+  }
+}
+
 export interface ContentStorageInfo {
   mode: ContentStorageMode;
   label: string;
@@ -45,6 +52,31 @@ export interface ContentStorageInfo {
 export interface SiteContentReadResult {
   content: SiteContent;
   source: 'blob-versioned' | 'blob-legacy' | 'local-file' | 'default-content';
+  storageRevision?: {
+    pathname: string;
+    etag: string;
+  };
+}
+
+let contentWriteQueue = Promise.resolve();
+
+export async function withContentWriteLock<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  const previousWrite = contentWriteQueue;
+  let releaseWrite!: () => void;
+
+  contentWriteQueue = new Promise<void>((resolve) => {
+    releaseWrite = resolve;
+  });
+
+  await previousWrite;
+
+  try {
+    return await operation();
+  } finally {
+    releaseWrite();
+  }
 }
 
 function hasBlobToken(): boolean {
@@ -112,7 +144,7 @@ async function readLocalContent(): Promise<SiteContent | null> {
   }
 }
 
-async function readBlobContent(pathname: string): Promise<SiteContent | null> {
+async function readBlobContent(pathname: string): Promise<SiteContentReadResult | null> {
   const blob = await get(pathname, { access: 'public' });
 
   if (blob?.statusCode !== 200) {
@@ -120,7 +152,16 @@ async function readBlobContent(pathname: string): Promise<SiteContent | null> {
   }
 
   const payload = await new Response(blob.stream).text();
-  return normalizeSiteContent(JSON.parse(payload));
+  return {
+    content: normalizeSiteContent(JSON.parse(payload)),
+    source: pathname === LEGACY_CONTENT_PATHNAME
+      ? 'blob-legacy'
+      : 'blob-versioned',
+    storageRevision: {
+      pathname,
+      etag: blob.blob.etag,
+    },
+  };
 }
 
 function extractVersionTimestamp(pathname: string): number {
@@ -193,20 +234,14 @@ export async function readSiteContentWithSource(
         const versionedContent = await readBlobContent(latestVersionedPathname);
 
         if (versionedContent) {
-          return {
-            content: versionedContent,
-            source: 'blob-versioned',
-          };
+          return versionedContent;
         }
       }
 
       const legacyContent = await readBlobContent(LEGACY_CONTENT_PATHNAME);
 
       if (legacyContent) {
-        return {
-          content: legacyContent,
-          source: 'blob-legacy',
-        };
+        return legacyContent;
       }
     } catch {
       if (options.strict) {
@@ -239,7 +274,10 @@ export async function readSiteContent(
   return content;
 }
 
-export async function writeSiteContent(value: SiteContent): Promise<SiteContent> {
+export async function writeSiteContent(
+  value: SiteContent,
+  storageRevision?: SiteContentReadResult['storageRevision'],
+): Promise<SiteContent> {
   const nextContent = normalizeSiteContent({
     ...value,
     updatedAt: new Date().toISOString(),
@@ -247,11 +285,25 @@ export async function writeSiteContent(value: SiteContent): Promise<SiteContent>
   const payload = JSON.stringify(nextContent, null, 2);
 
   if (hasBlobToken()) {
-    await put(createVersionedContentPathname(), payload, {
-      access: 'public',
-      addRandomSuffix: false,
-      contentType: 'application/json; charset=utf-8',
-    });
+    try {
+      await put(
+        storageRevision?.pathname ?? createVersionedContentPathname(),
+        payload,
+        {
+          access: 'public',
+          addRandomSuffix: false,
+          allowOverwrite: Boolean(storageRevision),
+          contentType: 'application/json; charset=utf-8',
+          ...(storageRevision ? { ifMatch: storageRevision.etag } : {}),
+        },
+      );
+    } catch (error) {
+      if (error instanceof BlobPreconditionFailedError) {
+        throw new ContentRevisionConflictError();
+      }
+
+      throw error;
+    }
 
     return nextContent;
   }
