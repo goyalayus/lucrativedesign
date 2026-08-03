@@ -17,7 +17,7 @@ import type {
 
 type AdminMode = 'loading' | 'login' | 'ready';
 type SettingImageField = 'logoMarkUrl' | 'logoFullUrl';
-type AdminStorageMode = 'blob' | 'local';
+type AdminStorageMode = 'blob' | 'local' | 'unavailable';
 
 interface AdminStorageInfo {
   mode: AdminStorageMode;
@@ -42,6 +42,7 @@ const storageInfo = ref<AdminStorageInfo | null>(null);
 const { replaceContent } = useSiteContent();
 
 const canUpload = computed(() => storageInfo.value?.mode === 'blob');
+const canSave = computed(() => storageInfo.value?.mode !== 'unavailable');
 
 const imageInputHelpText = computed(() =>
   canUpload.value
@@ -254,6 +255,13 @@ async function saveContent(): Promise<void> {
     return;
   }
 
+  if (!canSave.value) {
+    errorMessage.value =
+      storageInfo.value?.detail ??
+      'Persistent storage is not configured. Add BLOB_READ_WRITE_TOKEN to the Vercel project.';
+    return;
+  }
+
   successMessage.value = '';
   errorMessage.value = '';
   isSaving.value = true;
@@ -264,12 +272,18 @@ async function saveContent(): Promise<void> {
     });
     syncHeroProjectSlug();
 
+    const headers = new Headers({
+      'content-type': 'application/json',
+    });
+
+    if (draft.value.updatedAt) {
+      headers.set('if-match', draft.value.updatedAt);
+    }
+
     const response = await fetch('/api/admin/content', {
       method: 'PUT',
       credentials: 'include',
-      headers: {
-        'content-type': 'application/json',
-      },
+      headers,
       body: JSON.stringify(draft.value),
     });
 
@@ -640,7 +654,7 @@ function removeGalleryImage(project: Project, index: number): void {
               <button
                 type="button"
                 class="rounded-full bg-[#162328] px-6 py-3 text-sm font-medium uppercase tracking-[0.22em] text-white transition hover:bg-[#21343a] disabled:cursor-not-allowed disabled:opacity-55"
-                :disabled="isSaving"
+                :disabled="isSaving || !canSave"
                 @click="saveContent"
               >
                 {{ isSaving ? 'Saving...' : 'Save changes' }}
@@ -663,7 +677,7 @@ function removeGalleryImage(project: Project, index: number): void {
           </div>
 
           <div
-            v-if="storageInfo?.mode === 'local'"
+            v-if="storageInfo && storageInfo.mode !== 'blob'"
             class="mt-4 rounded-[24px] border border-[#ead5b6] bg-[#fff6ea] px-4 py-3 text-sm leading-relaxed text-[#6d5334]"
           >
             {{ storageInfo.detail }}

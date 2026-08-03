@@ -16,7 +16,9 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const body = await request.json().catch(() => null) as { password?: string } | null;
-  const password = body?.password?.trim();
+  const password = typeof body?.password === 'string'
+    ? body.password.trim()
+    : '';
 
   if (!password) {
     return errorResponse('Password is required.', 400);

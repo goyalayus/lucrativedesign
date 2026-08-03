@@ -13,7 +13,28 @@ const CONTENT_PATH_PREFIX = 'content/site-content-';
 const LOCAL_CONTENT_FILE = path.join(process.cwd(), 'data', 'site-content.local.json');
 const LOCAL_UPLOAD_ROOT = path.join(process.cwd(), 'public', 'uploads', 'admin');
 
-export type ContentStorageMode = 'blob' | 'local';
+export type ContentStorageMode = 'blob' | 'local' | 'unavailable';
+
+export const CONTENT_STORAGE_ERROR_MESSAGE =
+  'Persistent content storage is not configured. Add BLOB_READ_WRITE_TOKEN to the Vercel project.';
+export const ASSET_STORAGE_ERROR_MESSAGE =
+  'Persistent asset storage is not configured. Add BLOB_READ_WRITE_TOKEN to the Vercel project.';
+const CONTENT_READ_ERROR_MESSAGE =
+  'Persistent content storage could not be read right now. Verify the Vercel Blob connection.';
+
+export class ContentStorageUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ContentStorageUnavailableError';
+  }
+}
+
+export class ContentStorageReadError extends Error {
+  constructor() {
+    super(CONTENT_READ_ERROR_MESSAGE);
+    this.name = 'ContentStorageReadError';
+  }
+}
 
 export interface ContentStorageInfo {
   mode: ContentStorageMode;
@@ -30,6 +51,10 @@ function hasBlobToken(): boolean {
   return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
 }
 
+function isVercelRuntime(): boolean {
+  return Boolean(process.env.VERCEL || process.env.VERCEL_ENV);
+}
+
 export function getContentStorageInfo(): ContentStorageInfo {
   if (hasBlobToken()) {
     return {
@@ -37,6 +62,14 @@ export function getContentStorageInfo(): ContentStorageInfo {
       label: 'Vercel Blob storage',
       detail:
         'Paste public image URLs or upload files directly. Uploaded files persist in Vercel Blob for the live site.',
+    };
+  }
+
+  if (isVercelRuntime()) {
+    return {
+      mode: 'unavailable',
+      label: 'Persistent storage not configured',
+      detail: CONTENT_STORAGE_ERROR_MESSAGE,
     };
   }
 
@@ -143,7 +176,9 @@ function createVersionedContentPathname(): string {
   return `${CONTENT_PATH_PREFIX}${Date.now()}-${randomSuffix}.json`;
 }
 
-export async function readSiteContentWithSource(): Promise<SiteContentReadResult> {
+export async function readSiteContentWithSource(
+  options: { strict?: boolean } = {},
+): Promise<SiteContentReadResult> {
   if (hasBlobToken()) {
     try {
       const latestVersionedPathname = await findLatestVersionedContentPathname();
@@ -168,7 +203,11 @@ export async function readSiteContentWithSource(): Promise<SiteContentReadResult
         };
       }
     } catch {
-      // Fall back to local data or defaults.
+      if (options.strict) {
+        throw new ContentStorageReadError();
+      }
+
+      // The public site keeps serving defaults during a temporary Blob outage.
     }
   }
 
@@ -187,8 +226,10 @@ export async function readSiteContentWithSource(): Promise<SiteContentReadResult
   };
 }
 
-export async function readSiteContent(): Promise<SiteContent> {
-  const { content } = await readSiteContentWithSource();
+export async function readSiteContent(
+  options: { strict?: boolean } = {},
+): Promise<SiteContent> {
+  const { content } = await readSiteContentWithSource(options);
   return content;
 }
 
@@ -209,6 +250,10 @@ export async function writeSiteContent(value: SiteContent): Promise<SiteContent>
     return nextContent;
   }
 
+  if (isVercelRuntime()) {
+    throw new ContentStorageUnavailableError(CONTENT_STORAGE_ERROR_MESSAGE);
+  }
+
   await mkdir(path.dirname(LOCAL_CONTENT_FILE), { recursive: true });
   await writeFile(LOCAL_CONTENT_FILE, payload, 'utf8');
   return nextContent;
@@ -227,6 +272,10 @@ export async function uploadAsset(file: File, folder: string): Promise<string> {
     });
 
     return uploaded.url;
+  }
+
+  if (isVercelRuntime()) {
+    throw new ContentStorageUnavailableError(ASSET_STORAGE_ERROR_MESSAGE);
   }
 
   const outputDir = path.join(LOCAL_UPLOAD_ROOT, safeFolder);

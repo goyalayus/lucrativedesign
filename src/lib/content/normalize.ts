@@ -127,13 +127,12 @@ function normalizeProject(value: unknown, fallback?: Project): Project {
     return createProject(baseProject);
   }
 
-  const rawGallery = Array.isArray(value.gallery) ? value.gallery : [];
-  const gallery =
-    rawGallery.length > 0
-      ? rawGallery.map((entry, index) =>
-          normalizeImageAsset(entry, baseProject.gallery[index]),
-        )
-      : baseProject.gallery.map((entry) => createImageAsset(entry));
+  const rawGallery = Array.isArray(value.gallery) ? value.gallery : null;
+  const gallery = rawGallery
+    ? rawGallery.map((entry, index) =>
+        normalizeImageAsset(entry, baseProject.gallery[index]),
+      )
+    : baseProject.gallery.map((entry) => createImageAsset(entry));
 
   const heroImageSource =
     value.heroImage ??
@@ -153,7 +152,7 @@ function normalizeProject(value: unknown, fallback?: Project): Project {
     ),
     services: asStringList(value.services, baseProject.services),
     heroImage,
-    gallery: gallery.length > 0 ? gallery : [createImageAsset(heroImage)],
+    gallery,
   });
 }
 
