@@ -9,6 +9,7 @@ import { normalizeSiteContent } from '../../src/lib/content/normalize.js';
 import type { SiteContent } from '../../src/lib/content/types.js';
 
 const LEGACY_CONTENT_PATHNAME = 'content/site-content.json';
+const CURRENT_CONTENT_PATHNAME = 'content/site-content-authoritative.json';
 const CONTENT_PATH_PREFIX = 'content/site-content-';
 const LOCAL_CONTENT_FILE = path.join(process.cwd(), 'data', 'site-content.local.json');
 const LOCAL_UPLOAD_ROOT = path.join(process.cwd(), 'public', 'uploads', 'admin');
@@ -51,7 +52,12 @@ export interface ContentStorageInfo {
 
 export interface SiteContentReadResult {
   content: SiteContent;
-  source: 'blob-versioned' | 'blob-legacy' | 'local-file' | 'default-content';
+  source:
+    | 'blob-versioned'
+    | 'blob-current'
+    | 'blob-legacy'
+    | 'local-file'
+    | 'default-content';
   storageRevision?: {
     pathname: string;
     etag: string;
@@ -139,6 +145,13 @@ function normalizeEtag(etag: string): string {
   return etag.startsWith('W/') ? etag.slice(2) : etag;
 }
 
+function isBlobWriteConflict(error: unknown): boolean {
+  return (
+    error instanceof BlobPreconditionFailedError ||
+    (error instanceof Error && error.message.includes('This blob already exists'))
+  );
+}
+
 async function readLocalContent(): Promise<SiteContent | null> {
   try {
     const raw = await readFile(LOCAL_CONTENT_FILE, 'utf8');
@@ -158,9 +171,12 @@ async function readBlobContent(pathname: string): Promise<SiteContentReadResult 
   const payload = await new Response(blob.stream).text();
   return {
     content: normalizeSiteContent(JSON.parse(payload)),
-    source: pathname === LEGACY_CONTENT_PATHNAME
-      ? 'blob-legacy'
-      : 'blob-versioned',
+    source:
+      pathname === CURRENT_CONTENT_PATHNAME
+        ? 'blob-current'
+        : pathname === LEGACY_CONTENT_PATHNAME
+          ? 'blob-legacy'
+          : 'blob-versioned',
     storageRevision: {
       pathname,
       etag: normalizeEtag(blob.blob.etag),
@@ -182,7 +198,11 @@ function extractVersionTimestamp(pathname: string): number {
   return parsedTimestamp;
 }
 
-async function findLatestVersionedContentPathname(): Promise<string | null> {
+interface BlobContentPaths {
+  latestVersionedPathname: string | null;
+}
+
+async function findBlobContentPaths(): Promise<BlobContentPaths> {
   let cursor: string | undefined;
   let latestBlob:
     | {
@@ -193,12 +213,24 @@ async function findLatestVersionedContentPathname(): Promise<string | null> {
 
   do {
     const result = await list({
-      prefix: CONTENT_PATH_PREFIX,
+      prefix: 'content/',
       cursor,
       limit: 1000,
     });
 
     for (const blob of result.blobs) {
+      if (blob.pathname === CURRENT_CONTENT_PATHNAME) {
+        continue;
+      }
+
+      if (blob.pathname === LEGACY_CONTENT_PATHNAME) {
+        continue;
+      }
+
+      if (!blob.pathname.startsWith(CONTENT_PATH_PREFIX)) {
+        continue;
+      }
+
       const versionTimestamp = extractVersionTimestamp(blob.pathname);
 
       if (
@@ -219,12 +251,9 @@ async function findLatestVersionedContentPathname(): Promise<string | null> {
     cursor = result.hasMore ? result.cursor : undefined;
   } while (cursor);
 
-  return latestBlob?.pathname ?? null;
-}
-
-function createVersionedContentPathname(): string {
-  const randomSuffix = Math.random().toString(36).slice(2, 8);
-  return `${CONTENT_PATH_PREFIX}${Date.now()}-${randomSuffix}.json`;
+  return {
+    latestVersionedPathname: latestBlob?.pathname ?? null,
+  };
 }
 
 export async function readSiteContentWithSource(
@@ -232,7 +261,8 @@ export async function readSiteContentWithSource(
 ): Promise<SiteContentReadResult> {
   if (hasBlobToken()) {
     try {
-      const latestVersionedPathname = await findLatestVersionedContentPathname();
+      const contentPaths = await findBlobContentPaths();
+      const latestVersionedPathname = contentPaths.latestVersionedPathname;
 
       if (latestVersionedPathname) {
         const versionedContent = await readBlobContent(latestVersionedPathname);
@@ -240,6 +270,12 @@ export async function readSiteContentWithSource(
         if (versionedContent) {
           return versionedContent;
         }
+      }
+
+      const currentContent = await readBlobContent(CURRENT_CONTENT_PATHNAME);
+
+      if (currentContent) {
+        return currentContent;
       }
 
       const legacyContent = await readBlobContent(LEGACY_CONTENT_PATHNAME);
@@ -291,7 +327,7 @@ export async function writeSiteContent(
   if (hasBlobToken()) {
     try {
       await put(
-        storageRevision?.pathname ?? createVersionedContentPathname(),
+        storageRevision?.pathname ?? CURRENT_CONTENT_PATHNAME,
         payload,
         {
           access: 'public',
@@ -302,7 +338,7 @@ export async function writeSiteContent(
         },
       );
     } catch (error) {
-      if (error instanceof BlobPreconditionFailedError) {
+      if (isBlobWriteConflict(error)) {
         throw new ContentRevisionConflictError();
       }
 
