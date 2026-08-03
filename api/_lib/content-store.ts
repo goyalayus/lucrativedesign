@@ -162,7 +162,7 @@ async function readLocalContent(): Promise<SiteContent | null> {
 }
 
 async function readBlobContent(pathname: string): Promise<SiteContentReadResult | null> {
-  const blob = await get(pathname, { access: 'public' });
+  const blob = await get(pathname, { access: 'public', useCache: false });
 
   if (blob?.statusCode !== 200) {
     return null;
